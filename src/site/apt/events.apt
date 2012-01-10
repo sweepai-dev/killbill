@@ -1,0 +1,10 @@
+Events
+
+* Events/Notifications in Killbill
+
+    The killbill library offers a way to its users to register interest when the state of the system changes. For instance one may be interested to know that a subscription just got cancelled, that an invoice got generated, or that a payment went through. Each module generates events when some condition changed.
+    
+* Bus Events
+    The Killbill library allows a
+    
+* Notification Queue

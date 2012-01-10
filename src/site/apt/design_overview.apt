@@ -1,0 +1,38 @@
+Design Overview
+
+* Overview
+
+    The Killbill library is made of several modules -- catalog, account, entitlement, invoice, payment, analytics -- each of which is responsible for a specific function in the system. Some modules have dependencies on others as indicated below:
+    
+    * catalog
+    
+    * account
+    
+    * entitlement
+    
+    * invoice
+    
+    * payment
+    
+    * analytics. 
+
+  Those modules offer a set of specific APIs that users of the Killbill library can use for their purpose. For instance, the entitlement submodule offers a 'user' API which can be used to create a new subscription, or cancel a given subscription.
+
+[images/modules.png] Overview Of The Killbill Library
+
+* APIs
+
+* Cross Module Communication
+
+    The various modules also need to talk to each other; for instance, a user may create a new subscription using the entitlement API, and as a result the invoice module need to generate an invoice, and in turn the payment system needs to attempt a payment. The communication across modules can happen two ways:
+    
+    * A given module may use another module API
+    
+    * A given module may register for events notifications
+    
+    In order to decouple the system and avoid cyclic dependencies APIs calls are only allowed from dependents to dependees. For instance, the invoice module can call the entitlement or account module but the account or entitlement module cannot call the invoice module. To keep using that example, the communication between account and invoice must occur either through:
+    
+    * Event notifications (in that case the account module would generate events when things change and the invoice module would process the event)
+    
+    * Outside of the Killbill library if necessary
+

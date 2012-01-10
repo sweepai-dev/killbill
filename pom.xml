@@ -353,6 +353,22 @@
                 </dependencies>
             </plugin>
             <plugin>
+              <groupId>com.github.github</groupId>
+                <artifactId>site-maven-plugin</artifactId>
+                <version>0.4</version>
+                <configuration>
+                <message>Building site for ${project.version}</message>
+                </configuration>
+                <executions>
+                  <execution>
+                  <goals>
+                   <goal>site</goal>
+                  </goals>
+                  <phase>site</phase>
+                  </execution>
+                </executions>
+            </plugin>
+            <plugin>
                 <!-- TODO: fix for http://jira.codehaus.org/browse/MSITE-286? -->
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-site-plugin</artifactId>
@@ -409,6 +425,7 @@
                 <artifactId>maven-changelog-plugin</artifactId>
                 <version>2.2</version>
             </plugin>
+<!--
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-javadoc-plugin</artifactId>
@@ -432,6 +449,7 @@
                     </reportSet>
                 </reportSets>
             </plugin>
+-->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jxr-plugin</artifactId>
@@ -450,6 +468,7 @@
                 <artifactId>maven-project-info-reports-plugin</artifactId>
                 <version>2.4</version>
             </plugin>
+<!--
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>cobertura-maven-plugin</artifactId>
@@ -464,6 +483,7 @@
                     <effort>Max</effort>
                 </configuration>
             </plugin>
+-->
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>taglist-maven-plugin</artifactId>
@@ -490,6 +510,13 @@
             </plugin>
         </plugins>
     </reporting>
+    <distributionManagement>
+      <site>
+        <id>site</id>
+        <name>Killbill Site</name>
+        <url>some URL</url>
+      </site>
+    </distributionManagement>
     <issueManagement>
         <system>Github</system>
         <url>http://github.com/ning/killbill</url>
