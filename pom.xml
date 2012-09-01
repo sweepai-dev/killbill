@@ -52,6 +52,7 @@
         <module>util</module>
         <module>jaxrs</module>
         <module>server</module>
+        <module>tenant</module>
     </modules>
     <dependencyManagement>
         <dependencies>
@@ -97,6 +98,11 @@
             <dependency>
                 <groupId>com.ning.billing</groupId>
                 <artifactId>killbill-server</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.ning.billing</groupId>
+                <artifactId>killbill-tenant</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
