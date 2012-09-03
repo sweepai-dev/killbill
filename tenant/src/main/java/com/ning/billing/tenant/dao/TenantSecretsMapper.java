@@ -18,23 +18,16 @@ package com.ning.billing.tenant.dao;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.UUID;
 
 import org.skife.jdbi.v2.StatementContext;
 import org.skife.jdbi.v2.tweak.ResultSetMapper;
 
-import com.ning.billing.tenant.api.DefaultTenant;
-import com.ning.billing.tenant.api.Tenant;
 import com.ning.billing.util.dao.MapperBase;
 
-public class TenantMapper extends MapperBase implements ResultSetMapper<Tenant> {
+public class TenantSecretsMapper extends MapperBase implements ResultSetMapper<TenantSecrets> {
 
     @Override
-    public Tenant map(final int index, final ResultSet result, final StatementContext context) throws SQLException {
-        final UUID id = getUUID(result, "id");
-        final String externalKey = result.getString("external_key");
-        final String apiKey = result.getString("api_key");
-
-        return new DefaultTenant(id, externalKey, apiKey, null);
+    public TenantSecrets map(final int index, final ResultSet r, final StatementContext ctx) throws SQLException {
+        return new TenantSecrets(r.getString("api_key"), r.getString("api_secret"), r.getString("api_salt"));
     }
 }

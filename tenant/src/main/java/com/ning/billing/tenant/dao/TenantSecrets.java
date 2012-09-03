@@ -14,67 +14,60 @@
  * under the License.
  */
 
-package com.ning.billing.tenant.api;
+package com.ning.billing.tenant.dao;
 
-import java.util.UUID;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 
-import com.ning.billing.util.entity.EntityBase;
+import org.apache.shiro.authc.AuthenticationInfo;
+import org.apache.shiro.authc.SimpleAuthenticationInfo;
+import org.apache.shiro.codec.Base64;
+import org.apache.shiro.util.ByteSource;
+import org.skife.jdbi.v2.StatementContext;
+import org.skife.jdbi.v2.tweak.ResultSetMapper;
 
-public class DefaultTenant extends EntityBase implements Tenant {
+import com.ning.billing.util.dao.MapperBase;
 
-    private final String externalKey;
+/**
+ * Not exposed in the APIs - mainly for testing
+ */
+public final class TenantSecrets {
+
     private final String apiKey;
-    // Decrypted (clear) secret
+    // Encrypted secret
     private final String apiSecret;
+    private final String apiSalt;
 
-    /**
-     * This call is used to create a tenant
-     *
-     * @param data TenantData new data for the tenant
-     */
-    public DefaultTenant(final TenantData data) {
-        this(UUID.randomUUID(), data);
-    }
-
-    /**
-     * This call is used to update an existing tenant
-     *
-     * @param id   UUID id of the existing tenant to update
-     * @param data TenantData new data for the existing tenant
-     */
-    public DefaultTenant(final UUID id, final TenantData data) {
-        this(id, data.getExternalKey(), data.getApiKey(), data.getApiSecret());
-    }
-
-    public DefaultTenant(final UUID id, final String externalKey, final String apiKey, final String apiSecret) {
-        super(id);
-        this.externalKey = externalKey;
+   public TenantSecrets(final String apiKey, final String apiSecret, final String apiSalt) {
         this.apiKey = apiKey;
         this.apiSecret = apiSecret;
+        this.apiSalt = apiSalt;
     }
 
-    @Override
-    public String getExternalKey() {
-        return externalKey;
+    public AuthenticationInfo toAuthenticationInfo() {
+        final SimpleAuthenticationInfo authenticationInfo = new SimpleAuthenticationInfo(apiKey, apiSecret.toCharArray(), getClass().getSimpleName());
+        authenticationInfo.setCredentialsSalt(ByteSource.Util.bytes(Base64.decode(apiSalt)));
+        return authenticationInfo;
     }
 
-    @Override
     public String getApiKey() {
         return apiKey;
     }
 
-    @Override
     public String getApiSecret() {
         return apiSecret;
+    }
+
+    public String getApiSalt() {
+        return apiSalt;
     }
 
     @Override
     public String toString() {
         final StringBuilder sb = new StringBuilder();
-        sb.append("DefaultTenant");
-        sb.append("{externalKey='").append(externalKey).append('\'');
-        sb.append(", apiKey='").append(apiKey).append('\'');
-        // Don't print the secret
+        sb.append("TenantSecrets");
+        sb.append("{apiKey='").append(apiKey).append('\'');
+        // Don't print the secret nor salt
         sb.append('}');
         return sb.toString();
     }
@@ -88,12 +81,12 @@ public class DefaultTenant extends EntityBase implements Tenant {
             return false;
         }
 
-        final DefaultTenant that = (DefaultTenant) o;
+        final TenantSecrets that = (TenantSecrets) o;
 
         if (apiKey != null ? !apiKey.equals(that.apiKey) : that.apiKey != null) {
             return false;
         }
-        if (externalKey != null ? !externalKey.equals(that.externalKey) : that.externalKey != null) {
+        if (apiSalt != null ? !apiSalt.equals(that.apiSalt) : that.apiSalt != null) {
             return false;
         }
         if (apiSecret != null ? !apiSecret.equals(that.apiSecret) : that.apiSecret != null) {
@@ -105,9 +98,9 @@ public class DefaultTenant extends EntityBase implements Tenant {
 
     @Override
     public int hashCode() {
-        int result = externalKey != null ? externalKey.hashCode() : 0;
-        result = 31 * result + (apiKey != null ? apiKey.hashCode() : 0);
+        int result = apiKey != null ? apiKey.hashCode() : 0;
         result = 31 * result + (apiSecret != null ? apiSecret.hashCode() : 0);
+        result = 31 * result + (apiSalt != null ? apiSalt.hashCode() : 0);
         return result;
     }
 }

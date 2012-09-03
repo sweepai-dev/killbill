@@ -19,6 +19,7 @@ package com.ning.billing.tenant.dao;
 import org.skife.jdbi.v2.sqlobject.Bind;
 import org.skife.jdbi.v2.sqlobject.SqlQuery;
 import org.skife.jdbi.v2.sqlobject.SqlUpdate;
+import org.skife.jdbi.v2.sqlobject.customizers.Mapper;
 import org.skife.jdbi.v2.sqlobject.customizers.RegisterMapper;
 import org.skife.jdbi.v2.sqlobject.mixins.Transactional;
 import org.skife.jdbi.v2.sqlobject.mixins.Transmogrifier;
@@ -28,16 +29,20 @@ import com.ning.billing.tenant.api.Tenant;
 import com.ning.billing.util.callcontext.CallContext;
 import com.ning.billing.util.callcontext.CallContextBinder;
 import com.ning.billing.util.dao.UuidMapper;
-import com.ning.billing.util.entity.dao.UpdatableEntitySqlDao;
+import com.ning.billing.util.entity.dao.EntitySqlDao;
 
 @ExternalizedSqlViaStringTemplate3
 @RegisterMapper({UuidMapper.class, TenantMapper.class})
-public interface TenantSqlDao extends UpdatableEntitySqlDao<Tenant>, Transactional<TenantSqlDao>, Transmogrifier {
+public interface TenantSqlDao extends EntitySqlDao<Tenant>, Transactional<TenantSqlDao>, Transmogrifier {
 
     @SqlQuery
-    public Tenant getTenantByApiKey(@Bind("apiKey") final String apiKey);
+    public Tenant getByApiKey(@Bind("apiKey") final String apiKey);
 
-    @Override
     @SqlUpdate
-    public void create(@TenantBinder Tenant tenant, @CallContextBinder final CallContext context);
+    public void create(@TenantBinder final Tenant tenant, @Bind("apiSecret") final String apiSecret,
+                       @Bind("apiSalt") final String apiSalt, @CallContextBinder final CallContext context);
+
+    @SqlQuery
+    @Mapper(TenantSecretsMapper.class)
+    public TenantSecrets getSecrets(@Bind("id") final String id);
 }

@@ -24,6 +24,7 @@ import com.ning.billing.util.entity.Entity;
 import com.ning.billing.util.entity.EntityPersistenceException;
 
 public interface EntityDao<T extends Entity> {
+
     public void create(final T entity, final CallContext context) throws EntityPersistenceException;
 
     public T getById(final UUID id);

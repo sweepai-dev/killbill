@@ -4,6 +4,8 @@ CREATE TABLE tenants (
     id char(36) NOT NULL,
     external_key varchar(128) NULL,
     api_key varchar(128) NULL,
+    api_secret varchar(128) NULL,
+    api_salt varchar(128) NULL,
     created_date datetime NOT NULL,
     created_by varchar(50) NOT NULL,
     updated_date datetime DEFAULT NULL,

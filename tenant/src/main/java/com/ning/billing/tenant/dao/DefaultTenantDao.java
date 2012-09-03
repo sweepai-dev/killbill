@@ -19,6 +19,11 @@ package com.ning.billing.tenant.dao;
 import java.util.List;
 import java.util.UUID;
 
+import org.apache.shiro.authc.AuthenticationInfo;
+import org.apache.shiro.crypto.RandomNumberGenerator;
+import org.apache.shiro.crypto.SecureRandomNumberGenerator;
+import org.apache.shiro.crypto.hash.Sha256Hash;
+import org.apache.shiro.util.ByteSource;
 import org.skife.jdbi.v2.IDBI;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,11 +33,14 @@ import com.ning.billing.util.bus.Bus;
 import com.ning.billing.util.callcontext.CallContext;
 import com.ning.billing.util.entity.EntityPersistenceException;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.inject.Inject;
 
 public class DefaultTenantDao implements TenantDao {
 
     private static final Logger log = LoggerFactory.getLogger(DefaultTenantDao.class);
+
+    private final RandomNumberGenerator rng = new SecureRandomNumberGenerator();
 
     private final TenantSqlDao tenantSqlDao;
     private final Bus eventBus;
@@ -45,12 +53,18 @@ public class DefaultTenantDao implements TenantDao {
 
     @Override
     public Tenant getTenantByApiKey(final String apiKey) {
-        return tenantSqlDao.getTenantByApiKey(apiKey);
+        return tenantSqlDao.getByApiKey(apiKey);
     }
 
     @Override
     public void create(final Tenant entity, final CallContext context) throws EntityPersistenceException {
-        tenantSqlDao.create(entity, context);
+        // Create the salt and password
+        final ByteSource salt = rng.nextBytes();
+        // Hash the plain-text password with the random salt and multiple
+        // iterations and then Base64-encode the value (requires less space than Hex):
+        final String hashedPasswordBase64 = new Sha256Hash(entity.getApiSecret(), salt, 1024).toBase64();
+
+        tenantSqlDao.create(entity, hashedPasswordBase64, salt.toBase64(), context);
     }
 
     @Override
@@ -66,5 +80,10 @@ public class DefaultTenantDao implements TenantDao {
     @Override
     public void test() {
         tenantSqlDao.test();
+    }
+
+    @VisibleForTesting
+    AuthenticationInfo getAuthenticationInfoForTenant(final UUID id) {
+        return tenantSqlDao.getSecrets(id.toString()).toAuthenticationInfo();
     }
 }

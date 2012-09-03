@@ -14,20 +14,10 @@
  * under the License.
  */
 
-package com.ning.billing.tenant.api;
+package com.ning.billing.tenant;
 
-public interface TenantData {
+import com.ning.billing.KillbillTestSuiteWithEmbeddedDB;
 
-    public String getExternalKey();
+public class TenantTestSuiteWithEmbeddedDb extends KillbillTestSuiteWithEmbeddedDB {
 
-    public String getApiKey();
-
-    /**
-     * Note that we don't expose in the API how the
-     * secret is stored (with or without salt, hashing algorithm)
-     * so we can change it later
-     *
-     * @return the decrypted api secret
-     */
-    public String getApiSecret();
 }

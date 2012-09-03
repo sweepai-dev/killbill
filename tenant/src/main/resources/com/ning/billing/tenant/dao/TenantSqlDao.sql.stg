@@ -16,6 +16,8 @@ create() ::= <<
         id
       , external_key
       , api_key
+      , api_secret
+      , api_salt
       , created_date
       , created_by
       , updated_date
@@ -24,10 +26,12 @@ create() ::= <<
         :id
       , :externalKey
       , :apiKey
+      , :apiSecret
+      , :apiSalt
       , :createdDate
-      , :createdBy
+      , :userName
       , :updatedDate
-      , :updatedBy
+      , :userName
     );
 >>
 
@@ -46,6 +50,12 @@ getByApiKey() ::= <<
     SELECT <tenantFields()>
     FROM tenants
     WHERE api_key = :apiKey;
+>>
+
+getSecrets() ::= <<
+    SELECT api_key, api_secret, api_salt
+    FROM tenants
+    WHERE id = :id;
 >>
 
 test() ::= <<
