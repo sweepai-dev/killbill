@@ -57,12 +57,20 @@ public interface InvoiceUserApi {
     public BigDecimal getAccountBalance(UUID accountId);
 
     /**
+     * Retrieve the account CBA.
+     *
+     * @param accountId account id
+     * @return the account CBA
+     */
+    public BigDecimal getAccountCBA(UUID accountId);
+
+    /**
      * Retrieve an invoice by id.
      *
      * @param invoiceId invoice id
      * @return the invoice
      */
-    public Invoice getInvoice(UUID invoiceId);
+    public Invoice getInvoice(UUID invoiceId) throws InvoiceApiException;
 
     /**
      * Retrieve an invoice by invoice number.
@@ -70,7 +78,7 @@ public interface InvoiceUserApi {
      * @param number invoice number
      * @return the invoice
      */
-    public Invoice getInvoiceByNumber(Integer number);
+    public Invoice getInvoiceByNumber(Integer number) throws InvoiceApiException;
 
     /**
      * Record a payment for an invoice.
@@ -258,6 +266,17 @@ public interface InvoiceUserApi {
      */
     public InvoiceItem insertInvoiceItemAdjustment(UUID accountId, UUID invoiceId, UUID invoiceItemId, LocalDate effectiveDate,
                                                    BigDecimal amount, Currency currency, CallContext context) throws InvoiceApiException;
+
+    /**
+     * Delete a CBA item.
+     *
+     * @param accountId     account id
+     * @param invoiceId     invoice id
+     * @param invoiceItemId invoice item id (must be of type CBA_ADJ)
+     * @param context       the call context
+     * @throws InvoiceApiException
+     */
+    public void deleteCBA(UUID accountId, UUID invoiceId, UUID invoiceItemId, CallContext context) throws InvoiceApiException;
 
     /**
      * Retrieve the invoice formatted in HTML.

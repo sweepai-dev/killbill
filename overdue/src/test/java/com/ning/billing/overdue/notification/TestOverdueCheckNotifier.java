@@ -50,6 +50,7 @@ import com.ning.billing.mock.glue.MockJunctionModule;
 import com.ning.billing.mock.glue.MockPaymentModule;
 import com.ning.billing.ovedue.notification.DefaultOverdueCheckNotifier;
 import com.ning.billing.ovedue.notification.DefaultOverdueCheckPoster;
+import com.ning.billing.ovedue.notification.OverdueCheckNotificationKey;
 import com.ning.billing.ovedue.notification.OverdueCheckPoster;
 import com.ning.billing.overdue.OverdueProperties;
 import com.ning.billing.overdue.OverdueTestSuiteWithEmbeddedDB;
@@ -62,6 +63,8 @@ import com.ning.billing.util.clock.Clock;
 import com.ning.billing.util.clock.ClockMock;
 import com.ning.billing.util.customfield.dao.AuditedCustomFieldDao;
 import com.ning.billing.util.customfield.dao.CustomFieldDao;
+import com.ning.billing.util.email.EmailModule;
+import com.ning.billing.util.email.templates.TemplateModule;
 import com.ning.billing.util.globallocker.GlobalLocker;
 import com.ning.billing.util.globallocker.MySqlGlobalLocker;
 import com.ning.billing.util.glue.BusModule;
@@ -92,9 +95,9 @@ public class TestOverdueCheckNotifier extends OverdueTestSuiteWithEmbeddedDB {
         }
 
         @Override
-        public void handleNextOverdueCheck(final UUID subscriptionId) {
+        public void handleNextOverdueCheck(final OverdueCheckNotificationKey key) {
             eventCount++;
-            latestSubscriptionId = subscriptionId;
+            latestSubscriptionId = key.getUuidKey();
         }
 
         public int getEventCount() {
@@ -109,6 +112,7 @@ public class TestOverdueCheckNotifier extends OverdueTestSuiteWithEmbeddedDB {
     @BeforeClass(groups = "slow")
     public void setup() throws ServiceException, IOException, ClassNotFoundException, SQLException, EntitlementUserApiException {
         final Injector g = Guice.createInjector(Stage.PRODUCTION, new MockInvoiceModule(), new MockPaymentModule(), new BusModule(), new DefaultOverdueModule() {
+            @Override
             protected void configure() {
                 super.configure();
                 bind(Clock.class).to(ClockMock.class).asEagerSingleton();
@@ -128,6 +132,8 @@ public class TestOverdueCheckNotifier extends OverdueTestSuiteWithEmbeddedDB {
                 bind(GlobalLocker.class).to(MySqlGlobalLocker.class).asEagerSingleton();
                 bind(ChargeThruApi.class).toInstance(Mockito.mock(ChargeThruApi.class));
                 install(new MockJunctionModule());
+                install(new EmailModule());
+                install(new TemplateModule());
             }
         });
 

@@ -91,12 +91,18 @@ public class DefaultInvoiceUserApi implements InvoiceUserApi {
     }
 
     @Override
-    public Invoice getInvoice(final UUID invoiceId) {
+    public BigDecimal getAccountCBA(final UUID accountId) {
+        final BigDecimal result = dao.getAccountCBA(accountId);
+        return result == null ? BigDecimal.ZERO : result;
+    }
+
+    @Override
+    public Invoice getInvoice(final UUID invoiceId) throws InvoiceApiException {
         return dao.getById(invoiceId);
     }
 
     @Override
-    public Invoice getInvoiceByNumber(final Integer number) {
+    public Invoice getInvoiceByNumber(final Integer number) throws InvoiceApiException {
         return dao.getByNumber(number);
     }
 
@@ -217,6 +223,11 @@ public class DefaultInvoiceUserApi implements InvoiceUserApi {
         }
 
         return dao.insertInvoiceItemAdjustment(accountId, invoiceId, invoiceItemId, effectiveDate, amount, currency, context);
+    }
+
+    @Override
+    public void deleteCBA(final UUID accountId, final UUID invoiceId, final UUID invoiceItemId, final CallContext context) throws InvoiceApiException {
+        dao.deleteCBA(accountId, invoiceId, invoiceItemId, context);
     }
 
     @Override

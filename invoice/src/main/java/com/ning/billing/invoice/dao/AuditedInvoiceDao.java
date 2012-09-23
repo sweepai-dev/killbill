@@ -30,6 +30,7 @@ import org.joda.time.LocalDate;
 import org.skife.jdbi.v2.IDBI;
 import org.skife.jdbi.v2.Transaction;
 import org.skife.jdbi.v2.TransactionStatus;
+import org.skife.jdbi.v2.exceptions.TransactionFailedException;
 import org.skife.jdbi.v2.sqlobject.mixins.Transmogrifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -70,6 +71,7 @@ import com.google.common.base.Objects;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Collections2;
 import com.google.common.collect.ImmutableMap.Builder;
+import com.google.common.collect.Lists;
 import com.google.inject.Inject;
 
 public class AuditedInvoiceDao implements InvoiceDao {
@@ -150,25 +152,36 @@ public class AuditedInvoiceDao implements InvoiceDao {
     }
 
     @Override
-    public Invoice getById(final UUID invoiceId) {
-        return invoiceSqlDao.inTransaction(new Transaction<Invoice, InvoiceSqlDao>() {
-            @Override
-            public Invoice inTransaction(final InvoiceSqlDao invoiceDao, final TransactionStatus status) throws Exception {
-                final Invoice invoice = invoiceDao.getById(invoiceId.toString());
-
-                if (invoice != null) {
+    public Invoice getById(final UUID invoiceId) throws InvoiceApiException {
+        try {
+            return invoiceSqlDao.inTransaction(new Transaction<Invoice, InvoiceSqlDao>() {
+                @Override
+                public Invoice inTransaction(final InvoiceSqlDao invoiceDao, final TransactionStatus status) throws Exception {
+                    final Invoice invoice = invoiceDao.getById(invoiceId.toString());
+                    if (invoice == null) {
+                        throw new InvoiceApiException(ErrorCode.INVOICE_NOT_FOUND, invoiceId);
+                    }
                     populateChildren(invoice, invoiceDao);
+                    return invoice;
                 }
-
-                return invoice;
+            });
+        } catch (TransactionFailedException e) {
+            if (e.getCause() instanceof InvoiceApiException) {
+                throw (InvoiceApiException) e.getCause();
+            } else {
+                throw e;
             }
-        });
+        }
     }
 
     @Override
-    public Invoice getByNumber(final Integer number) {
+    public Invoice getByNumber(final Integer number) throws InvoiceApiException {
         // The invoice number is just the record id
-        return invoiceSqlDao.getByRecordId(number.longValue());
+        final Invoice result = invoiceSqlDao.getByRecordId(number.longValue());
+        if (result == null) {
+            throw new InvoiceApiException(ErrorCode.INVOICE_NOT_FOUND, number);
+        }
+        return result;
     }
 
     @Override
@@ -387,15 +400,6 @@ public class AuditedInvoiceDao implements InvoiceDao {
                 final BigDecimal invoiceBalanceAfterRefund = invoice.getBalance();
                 final InvoiceItemSqlDao transInvoiceItemDao = transInvoiceDao.become(InvoiceItemSqlDao.class);
 
-                // If we have an existing CBA > 0 at the account level, we need to use it
-                final BigDecimal accountCbaAvailable = getAccountCBAFromTransaction(invoice.getAccountId(), transInvoiceDao);
-                BigDecimal cbaAdjAmount = BigDecimal.ZERO;
-                if (accountCbaAvailable.compareTo(BigDecimal.ZERO) > 0) {
-                    cbaAdjAmount = (requestedPositiveAmount.compareTo(accountCbaAvailable) > 0) ? accountCbaAvailable.negate() : requestedPositiveAmount.negate();
-                    final InvoiceItem cbaAdjItem = new CreditBalanceAdjInvoiceItem(invoice.getId(), invoice.getAccountId(), context.getCreatedDate().toLocalDate(), cbaAdjAmount, invoice.getCurrency());
-                    transInvoiceItemDao.create(cbaAdjItem, context);
-                }
-                final BigDecimal requestedPositiveAmountAfterCbaAdj = requestedPositiveAmount.add(cbaAdjAmount);
 
                 // At this point, we created the refund which made the invoice balance positive and applied any existing
                 // available CBA to that invoice.
@@ -403,7 +407,7 @@ public class AuditedInvoiceDao implements InvoiceDao {
                 if (isInvoiceAdjusted && invoiceItemIdsWithAmounts.size() == 0) {
                     // Invoice adjustment
                     final BigDecimal maxBalanceToAdjust = (invoiceBalanceAfterRefund.compareTo(BigDecimal.ZERO) <= 0) ? BigDecimal.ZERO : invoiceBalanceAfterRefund;
-                    final BigDecimal requestedPositiveAmountToAdjust = requestedPositiveAmountAfterCbaAdj.compareTo(maxBalanceToAdjust) > 0 ? maxBalanceToAdjust : requestedPositiveAmountAfterCbaAdj;
+                    final BigDecimal requestedPositiveAmountToAdjust = requestedPositiveAmount.compareTo(maxBalanceToAdjust) > 0 ? maxBalanceToAdjust : requestedPositiveAmount;
                     if (requestedPositiveAmountToAdjust.compareTo(BigDecimal.ZERO) > 0) {
                         final InvoiceItem adjItem = new RefundAdjInvoiceItem(invoice.getId(), invoice.getAccountId(), context.getCreatedDate().toLocalDate(), requestedPositiveAmountToAdjust.negate(), invoice.getCurrency());
                         transInvoiceItemDao.create(adjItem, context);
@@ -576,7 +580,8 @@ public class AuditedInvoiceDao implements InvoiceDao {
 
     @Override
     public InvoiceItem insertExternalCharge(final UUID accountId, @Nullable final UUID invoiceId, @Nullable final UUID bundleId, final String description,
-                                            final BigDecimal amount, final LocalDate effectiveDate, final Currency currency, final CallContext context) {
+                                            final BigDecimal amount, final LocalDate effectiveDate, final Currency currency, final CallContext context)
+            throws InvoiceApiException {
         return invoiceSqlDao.inTransaction(new Transaction<InvoiceItem, InvoiceSqlDao>() {
             @Override
             public InvoiceItem inTransaction(final InvoiceSqlDao transactional, final TransactionStatus status) throws Exception {
@@ -595,9 +600,22 @@ public class AuditedInvoiceDao implements InvoiceDao {
                 final InvoiceItemSqlDao transInvoiceItemDao = transactional.become(InvoiceItemSqlDao.class);
                 transInvoiceItemDao.create(externalCharge, context);
 
+                // At this point, reread the invoice and figure out if we need to consume some of the CBA
+                final Invoice invoice = transactional.getById(invoiceIdForExternalCharge.toString());
+                if (invoice == null) {
+                    throw new InvoiceApiException(ErrorCode.INVOICE_NOT_FOUND, invoiceIdForExternalCharge);
+                }
+                populateChildren(invoice, transactional);
+
+                final BigDecimal accountCbaAvailable = getAccountCBAFromTransaction(invoice.getAccountId(), transactional);
+                if (accountCbaAvailable.compareTo(BigDecimal.ZERO) > 0 && invoice.getBalance().compareTo(BigDecimal.ZERO) > 0) {
+                    final BigDecimal cbaAmountToConsume = accountCbaAvailable.compareTo(invoice.getBalance()) > 0 ? invoice.getBalance().negate() : accountCbaAvailable.negate();
+                    final InvoiceItem cbaAdjItem = new CreditBalanceAdjInvoiceItem(invoice.getId(), invoice.getAccountId(), context.getCreatedDate().toLocalDate(), cbaAmountToConsume, invoice.getCurrency());
+                    transInvoiceItemDao.create(cbaAdjItem, context);
+                }
+
                 // Notify the bus since the balance of the invoice changed
                 notifyBusOfInvoiceAdjustment(transactional, invoiceId, accountId, context.getUserToken());
-
                 return externalCharge;
             }
         });
@@ -652,6 +670,90 @@ public class AuditedInvoiceDao implements InvoiceDao {
                 notifyBusOfInvoiceAdjustment(transactional, invoiceId, accountId, context.getUserToken());
 
                 return invoiceItemAdjustment;
+            }
+        });
+    }
+
+    @Override
+    public void deleteCBA(final UUID accountId, final UUID invoiceId, final UUID invoiceItemId, final CallContext context) throws InvoiceApiException {
+        invoiceSqlDao.inTransaction(new Transaction<Void, InvoiceSqlDao>() {
+            @Override
+            public Void inTransaction(final InvoiceSqlDao transactional, final TransactionStatus status) throws Exception {
+                // Retrieve the invoice and make sure it belongs to the right account
+                final Invoice invoice = transactional.getById(invoiceId.toString());
+                if (invoice == null || !invoice.getAccountId().equals(accountId)) {
+                    throw new InvoiceApiException(ErrorCode.INVOICE_NOT_FOUND, invoiceId);
+                }
+
+                // Retrieve the invoice item and make sure it belongs to the right invoice
+                final InvoiceItemSqlDao invoiceItemSqlDao = transactional.become(InvoiceItemSqlDao.class);
+                final InvoiceItem cbaItem = invoiceItemSqlDao.getById(invoiceItemId.toString());
+                if (cbaItem == null || !cbaItem.getInvoiceId().equals(invoice.getId())) {
+                    throw new InvoiceApiException(ErrorCode.INVOICE_ITEM_NOT_FOUND, invoiceItemId);
+                }
+
+                // First, adjust the same invoice with the CBA amount to "delete"
+                final InvoiceItem cbaAdjItem = new CreditBalanceAdjInvoiceItem(invoice.getId(), invoice.getAccountId(), context.getCreatedDate().toLocalDate(),
+                                                                               cbaItem.getId(), cbaItem.getAmount().negate(), cbaItem.getCurrency());
+                invoiceItemSqlDao.create(cbaAdjItem, context);
+
+                // If there is more account credit than CBA we adjusted, we're done.
+                // Otherwise, we need to find further invoices on which this credit was consumed
+                final BigDecimal accountCBA = getAccountCBAFromTransaction(accountId, invoiceSqlDao);
+                if (accountCBA.compareTo(BigDecimal.ZERO) < 0) {
+                    if (accountCBA.compareTo(cbaItem.getAmount().negate()) < 0) {
+                        throw new IllegalStateException("The account balance can't be lower than the amount adjusted");
+                    }
+                    final List<Invoice> invoicesFollowing = transactional.getInvoicesByAccountAfterDate(accountId.toString(),
+                                                                                                        invoice.getInvoiceDate().toDateTimeAtStartOfDay().toDate());
+                    populateChildren(invoicesFollowing, transactional);
+
+                    // The remaining amount to adjust (i.e. the amount of credits used on following invoices)
+                    // is the current account CBA balance (minus the sign)
+                    BigDecimal positiveRemainderToAdjust = accountCBA.negate();
+                    for (final Invoice invoiceFollowing : invoicesFollowing) {
+                        if (invoiceFollowing.getId().equals(invoice.getId())) {
+                            continue;
+                        }
+
+                        // Add a single adjustment per invoice
+                        BigDecimal positiveCBAAdjItemAmount = BigDecimal.ZERO;
+
+                        // Start with the most recent invoice to limit the impact on overdue
+                        for (final InvoiceItem cbaUsed : Lists.reverse(invoiceFollowing.getInvoiceItems())) {
+                            // Ignore non CBA items or credits (CBA >= 0)
+                            if (!InvoiceItemType.CBA_ADJ.equals(cbaUsed.getInvoiceItemType()) ||
+                                cbaUsed.getAmount().compareTo(BigDecimal.ZERO) >= 0) {
+                                continue;
+                            }
+
+                            final BigDecimal positiveCBAUsedAmount = cbaUsed.getAmount().negate();
+                            final BigDecimal positiveNextCBAAdjItemAmount;
+                            if (positiveCBAUsedAmount.compareTo(positiveRemainderToAdjust) < 0) {
+                                positiveNextCBAAdjItemAmount = positiveCBAUsedAmount;
+                                positiveRemainderToAdjust = positiveRemainderToAdjust.min(positiveNextCBAAdjItemAmount);
+                            } else {
+                                positiveNextCBAAdjItemAmount = positiveRemainderToAdjust;
+                                positiveRemainderToAdjust = BigDecimal.ZERO;
+                            }
+                            positiveCBAAdjItemAmount = positiveCBAAdjItemAmount.add(positiveNextCBAAdjItemAmount);
+
+                            if (positiveRemainderToAdjust.compareTo(BigDecimal.ZERO) == 0) {
+                                break;
+                            }
+                        }
+
+                        // Add the adjustment on that invoice
+                        final InvoiceItem nextCBAAdjItem = new CreditBalanceAdjInvoiceItem(invoiceFollowing.getId(), invoice.getAccountId(), context.getCreatedDate().toLocalDate(),
+                                                                                           cbaItem.getId(), positiveCBAAdjItemAmount, cbaItem.getCurrency());
+                        invoiceItemSqlDao.create(nextCBAAdjItem, context);
+                        if (positiveRemainderToAdjust.compareTo(BigDecimal.ZERO) == 0) {
+                            break;
+                        }
+                    }
+                }
+
+                return null;
             }
         });
     }
@@ -742,7 +844,6 @@ public class AuditedInvoiceDao implements InvoiceDao {
         for (final Invoice cur : invoices) {
             cba = cba.add(cur.getCBAAmount());
         }
-
         return cba;
     }
 

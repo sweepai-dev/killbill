@@ -37,9 +37,9 @@ public interface InvoiceDao {
 
     void create(final Invoice invoice, final int billCycleDayUTC, final boolean isRealInvoice, final CallContext context);
 
-    Invoice getById(final UUID id);
+    Invoice getById(final UUID id) throws InvoiceApiException;
 
-    Invoice getByNumber(final Integer number);
+    Invoice getByNumber(final Integer number) throws InvoiceApiException;
 
     List<Invoice> get();
 
@@ -119,7 +119,7 @@ public interface InvoiceDao {
      * @return the newly created external charge invoice item
      */
     InvoiceItem insertExternalCharge(final UUID accountId, @Nullable final UUID invoiceId, @Nullable final UUID bundleId, @Nullable final String description,
-                                     final BigDecimal amount, final LocalDate effectiveDate, final Currency currency, final CallContext context);
+                                     final BigDecimal amount, final LocalDate effectiveDate, final Currency currency, final CallContext context) throws InvoiceApiException;
 
     /**
      * Retrieve a credit by id.
@@ -158,4 +158,13 @@ public interface InvoiceDao {
      */
     InvoiceItem insertInvoiceItemAdjustment(final UUID accountId, final UUID invoiceId, final UUID invoiceItemId, final LocalDate effectiveDate,
                                             @Nullable final BigDecimal amount, @Nullable final Currency currency, final CallContext context);
+
+    /**
+     * Delete a CBA item.
+     *
+     * @param accountId     the account id
+     * @param invoiceId     the invoice id
+     * @param invoiceItemId the invoice item id of the cba item to delete
+     */
+    void deleteCBA(final UUID accountId, final UUID invoiceId, final UUID invoiceItemId, final CallContext context) throws InvoiceApiException;
 }

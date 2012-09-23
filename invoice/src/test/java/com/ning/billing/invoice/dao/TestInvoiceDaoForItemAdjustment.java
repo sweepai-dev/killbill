@@ -101,14 +101,14 @@ public class TestInvoiceDaoForItemAdjustment extends InvoiceDaoTestBase {
         Assert.assertEquals(adjustedInvoiceItem.getAmount().compareTo(BigDecimal.TEN.negate()), 0);
     }
 
-    private InvoiceItem createAndCheckAdjustment(final Invoice invoice, final InvoiceItem invoiceItem, final BigDecimal amount) {
+    private InvoiceItem createAndCheckAdjustment(final Invoice invoice, final InvoiceItem invoiceItem, final BigDecimal amount) throws InvoiceApiException {
         final LocalDate effectiveDate = new LocalDate(2010, 1, 1);
         final InvoiceItem adjustedInvoiceItem = invoiceDao.insertInvoiceItemAdjustment(invoice.getAccountId(), invoice.getId(), invoiceItem.getId(),
                                                                                        effectiveDate, amount, null, context);
         Assert.assertEquals(adjustedInvoiceItem.getAccountId(), invoiceItem.getAccountId());
         Assert.assertNull(adjustedInvoiceItem.getBundleId());
         Assert.assertEquals(adjustedInvoiceItem.getCurrency(), invoiceItem.getCurrency());
-        Assert.assertEquals(adjustedInvoiceItem.getDescription(), "item-adj");
+        Assert.assertEquals(adjustedInvoiceItem.getDescription(), "Invoice item adjustment");
         Assert.assertEquals(adjustedInvoiceItem.getEndDate(), effectiveDate);
         Assert.assertEquals(adjustedInvoiceItem.getInvoiceId(), invoiceItem.getInvoiceId());
         Assert.assertEquals(adjustedInvoiceItem.getInvoiceItemType(), InvoiceItemType.ITEM_ADJ);

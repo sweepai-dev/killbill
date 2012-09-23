@@ -37,6 +37,7 @@ import javax.ws.rs.core.Response.Status;
 
 import org.eclipse.jetty.servlet.FilterHolder;
 import org.joda.time.DateTime;
+import org.joda.time.LocalDate;
 import org.skife.config.ConfigurationObjectFactory;
 import org.skife.jdbi.v2.IDBI;
 import org.slf4j.Logger;
@@ -281,6 +282,8 @@ public class TestJaxrsBase extends ServerTestSuiteWithEmbeddedDB {
     @BeforeMethod(groups = "slow")
     public void cleanupBeforeMethod(final Method method) {
         busHandler.reset();
+        clock.reset();
+        clock.setDay(new LocalDate(2012, 8, 25));
     }
 
     @BeforeClass(groups = "slow")
@@ -781,6 +784,15 @@ public class TestJaxrsBase extends ServerTestSuiteWithEmbeddedDB {
         assertNotNull(objFromJson);
 
         return objFromJson;
+    }
+
+    protected void payAllInvoices(final AccountJson accountJson, final Boolean externalPayment) throws IOException {
+        final PaymentJsonSimple payment = new PaymentJsonSimple(null, null, accountJson.getAccountId(), null, null, null, null,
+                                                                null, 0, null, null, null, null, null, null, null);
+        final String postJson = mapper.writeValueAsString(payment);
+
+        final String uri = JaxrsResource.INVOICES_PATH + "/" + JaxrsResource.PAYMENTS;
+        doPost(uri, postJson, ImmutableMap.<String, String>of("externalPayment", externalPayment.toString()), DEFAULT_HTTP_TIMEOUT_SEC);
     }
 
     protected List<PaymentJsonSimple> createInstaPayment(final AccountJson accountJson, final InvoiceJsonSimple invoice) throws IOException {

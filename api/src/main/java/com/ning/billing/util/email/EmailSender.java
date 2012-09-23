@@ -20,5 +20,8 @@ import java.io.IOException;
 import java.util.List;
 
 public interface EmailSender {
-    public void sendSecureEmail(List<String> to, List<String> cc, String subject, String htmlBody) throws IOException, EmailApiException;
+
+    public void sendHTMLEmail(List<String> to, List<String> cc, String subject, String htmlBody) throws IOException, EmailApiException;
+
+    public void sendPlainTextEmail(List<String> to, List<String> cc, String subject, String body) throws IOException, EmailApiException;
 }

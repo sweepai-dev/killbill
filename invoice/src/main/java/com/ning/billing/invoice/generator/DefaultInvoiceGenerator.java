@@ -18,6 +18,7 @@ package com.ning.billing.invoice.generator;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -56,6 +57,8 @@ import com.ning.billing.invoice.model.RepairAdjInvoiceItem;
 import com.ning.billing.junction.api.BillingEventSet;
 import com.ning.billing.util.clock.Clock;
 
+import com.google.common.base.Predicate;
+import com.google.common.collect.Collections2;
 import com.google.inject.Inject;
 
 public class DefaultInvoiceGenerator implements InvoiceGenerator {
@@ -160,11 +163,42 @@ public class DefaultInvoiceGenerator implements InvoiceGenerator {
         for (final InvoiceItem existingItem : existingItems) {
             if (existingItem.getInvoiceItemType() == InvoiceItemType.RECURRING ||
                 existingItem.getInvoiceItemType() == InvoiceItemType.FIXED) {
-                final BigDecimal amountNegated = existingItem.getAmount() == null ? null : existingItem.getAmount().negate();
-                final RepairAdjInvoiceItem repairItem = new RepairAdjInvoiceItem(existingItem.getInvoiceId(), existingItem.getAccountId(), existingItem.getStartDate(), existingItem.getEndDate(), amountNegated, existingItem.getCurrency(), existingItem.getId());
-                proposedItems.add(repairItem);
+                final BigDecimal existingAdjustedPositiveAmount = getAdjustedPositiveAmount(existingItems, existingItem.getId());
+                final BigDecimal amountNegated = existingItem.getAmount() == null ? null : existingItem.getAmount().subtract(existingAdjustedPositiveAmount).negate();
+                if (amountNegated.compareTo(BigDecimal.ZERO) < 0) {
+                    final RepairAdjInvoiceItem repairItem = new RepairAdjInvoiceItem(existingItem.getInvoiceId(), existingItem.getAccountId(), existingItem.getStartDate(), existingItem.getEndDate(), amountNegated, existingItem.getCurrency(), existingItem.getId());
+                    proposedItems.add(repairItem);
+                }
             }
         }
+
+    }
+
+    // We check to see if there are any adjustments that point to the item we are trying to repair
+    // If we did any CREDIT_ADJ or REFUND_ADJ, then we unfortunately we can't know what is the intent
+    // was as it applies to the full Invoice, so we ignore it. That might result in an extra positive CBA
+    // that would have to be corrected manually. This is the best we can do, and administrators should always
+    // use ITEM_ADJUSTEMNT rather than CREDIT_ADJ or REFUND_ADJ when possible.
+    //
+    BigDecimal getAdjustedPositiveAmount(final List<InvoiceItem> existingItems, final UUID linkedItemId) {
+        BigDecimal totalAdjustedOnItem = BigDecimal.ZERO;
+        final Collection<InvoiceItem> c = Collections2.filter(existingItems, new Predicate<InvoiceItem>() {
+            @Override
+            public boolean apply(InvoiceItem item) {
+                if (item.getInvoiceItemType() == InvoiceItemType.ITEM_ADJ &&
+                    item.getLinkedItemId() != null && item.getLinkedItemId().equals(linkedItemId)) {
+                    return true;
+                } else {
+                    return false;
+                }
+            }
+        });
+
+        final Iterator<InvoiceItem> it = c.iterator();
+        while (it.hasNext()) {
+            totalAdjustedOnItem = totalAdjustedOnItem.add(it.next().getAmount());
+        }
+        return totalAdjustedOnItem.negate();
     }
 
     void consumeExistingCredit(final UUID invoiceId, final UUID accountId, final List<InvoiceItem> existingItems,

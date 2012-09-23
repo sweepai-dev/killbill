@@ -27,7 +27,9 @@ import org.joda.time.Period;
 import com.ning.billing.ErrorCode;
 import com.ning.billing.catalog.api.TimeUnit;
 import com.ning.billing.junction.api.Blockable;
+import com.ning.billing.overdue.EmailNotification;
 import com.ning.billing.overdue.OverdueApiException;
+import com.ning.billing.overdue.OverdueCancellationPolicicy;
 import com.ning.billing.overdue.OverdueState;
 import com.ning.billing.util.config.ValidatingConfig;
 import com.ning.billing.util.config.ValidationError;
@@ -54,32 +56,30 @@ public class DefaultOverdueState<T extends Blockable> extends ValidatingConfig<O
     @XmlElement(required = false, name = "disableEntitlementAndChangesBlocked")
     private Boolean disableEntitlement = false;
 
+    @XmlElement(required = false, name = "subscriptionCancellationPolicy")
+    private OverdueCancellationPolicicy subscriptionCancellationPolicy = OverdueCancellationPolicicy.NONE;
+
     @XmlElement(required = false, name = "isClearState")
     private Boolean isClearState = false;
 
     @XmlElement(required = false, name = "autoReevaluationInterval")
     private DefaultDuration autoReevaluationInterval;
 
+    @XmlElement(required = false, name = "enterStateEmailNotification")
+    private DefaultEmailNotification enterStateEmailNotification;
 
     //Other actions could include
-    // - send email
     // - trigger payment retry?
     // - add tagStore to bundle/account
     // - set payment failure email template
     // - set payment retry interval
     // - backup payment mechanism?
 
-    /* (non-Javadoc)
-    * @see com.ning.billing.catalog.overdue.OverdueState#getStageName()
-    */
     @Override
     public String getName() {
         return name;
     }
 
-    /* (non-Javadoc)
-    * @see com.ning.billing.catalog.overdue.OverdueState#getExternalMessage()
-    */
     @Override
     public String getExternalMessage() {
         return externalMessage;
@@ -90,12 +90,14 @@ public class DefaultOverdueState<T extends Blockable> extends ValidatingConfig<O
         return blockChanges || disableEntitlement;
     }
 
-    /* (non-Javadoc)
-    * @see com.ning.billing.catalog.overdue.OverdueState#applyCancel()
-    */
     @Override
     public boolean disableEntitlementAndChangesBlocked() {
         return disableEntitlement;
+    }
+
+    @Override
+    public OverdueCancellationPolicicy getSubscriptionCancellationPolicy() {
+        return subscriptionCancellationPolicy;
     }
 
     @Override
@@ -106,6 +108,7 @@ public class DefaultOverdueState<T extends Blockable> extends ValidatingConfig<O
         return autoReevaluationInterval.toJodaPeriod();
     }
 
+    @Override
     public DefaultCondition<T> getCondition() {
         return condition;
     }
@@ -127,6 +130,11 @@ public class DefaultOverdueState<T extends Blockable> extends ValidatingConfig<O
 
     protected DefaultOverdueState<T> setDisableEntitlement(final boolean cancel) {
         this.disableEntitlement = cancel;
+        return this;
+    }
+
+    public DefaultOverdueState<T> setSubscriptionCancellationPolicy(final OverdueCancellationPolicicy policy) {
+        this.subscriptionCancellationPolicy = policy;
         return this;
     }
 
@@ -156,9 +164,11 @@ public class DefaultOverdueState<T extends Blockable> extends ValidatingConfig<O
 
     @Override
     public int getDaysBetweenPaymentRetries() {
-        final Integer daysBetweenPaymentRetries = 8;
-        return daysBetweenPaymentRetries;
+        return 8;
     }
 
-
+    @Override
+    public EmailNotification getEnterStateEmailNotification() {
+        return enterStateEmailNotification;
+    }
 }
