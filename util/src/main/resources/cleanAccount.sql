@@ -1,7 +1,10 @@
 drop procedure if exists cleanAccount;
 DELIMITER //
-CREATE PROCEDURE cleanAccount(p_account_id varchar(36))
+CREATE PROCEDURE cleanAccount(p_account_ids varchar(36)[])
 BEGIN
+  DECLARE i INT DEFAULT 0;
+  WHILE i < LENGTH(p_account_ids) DO
+    SET @p_account_id = p_account_ids[i];
 
     DECLARE v_account_record_id bigint /*! unsigned */;
     DECLARE v_tenant_record_id bigint /*! unsigned */;
@@ -16,6 +19,7 @@ BEGIN
     DELETE FROM payment_method_history WHERE account_record_id = v_account_record_id and tenant_record_id = v_tenant_record_id;
     DELETE FROM payment_methods WHERE account_record_id = v_account_record_id and tenant_record_id = v_tenant_record_id;
 
-    END;
+  END WHILE;
+END;
 //
 DELIMITER ;
