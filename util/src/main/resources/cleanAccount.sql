@@ -19,7 +19,7 @@ BEGIN
     WHILE (FETCH NEXT FROM stmt INTO v_account_id) DO
         select record_id, tenant_record_id from accounts WHERE id = v_account_id into v_account_record_id, v_tenant_record_id;
 
-    call trimAccount(p_account_id);
+        call trimAccount(p_account_id);
 
         DELETE FROM account_history WHERE target_record_id = v_account_record_id and tenant_record_id = v_tenant_record_id;
         DELETE FROM accounts WHERE record_id = v_account_record_id and tenant_record_id = v_tenant_record_id;
